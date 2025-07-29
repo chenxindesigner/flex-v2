@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>Flex 卡片分享器 v2.3</title>
+  <title>Flex 卡片分享器 v2.4</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
@@ -60,7 +60,7 @@
 </head>
 <body>
   <div class="card">
-    <h1>✨ Flex 卡片分享器 v2.3</h1>
+    <h1>✨ Flex 卡片分享器 v2.4</h1>
     <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
     <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，emoji、漸層、變色按鈕、多卡通通都能用"></textarea>
     <button onclick="sendFlex()">📤 分享給 LINE 好友</button>
@@ -73,26 +73,26 @@
       })
       .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-    function fixJsonStructure(obj) {
+    function fixAll(obj) {
       if (typeof obj !== 'object' || obj === null) return;
+
+      // 修正圖片網址
+      if (obj.url && typeof obj.url === 'string' && obj.url.includes('lh3.googleusercontent.com/d/')) {
+        if (!obj.url.includes('=')) obj.url += '=w1080';
+      }
+
+      // 刪除空 box.contents（非刪 bubble）
+      if (
+        obj.type === 'box' &&
+        Array.isArray(obj.contents) &&
+        obj.contents.length === 0
+      ) {
+        delete obj.contents;
+      }
+
       for (let key in obj) {
-        const val = obj[key];
-
-        // 修正圖片網址
-        if (key === 'url' && typeof val === 'string' && val.includes('lh3.googleusercontent.com/d/')) {
-          if (!val.includes('=')) obj[key] += '=w1080';
-        }
-
-        // 遞迴處理內部
-        if (typeof val === 'object') fixJsonStructure(val);
-
-        // 刪掉空 contents: []
-        if (
-          key === 'contents' &&
-          Array.isArray(val) &&
-          val.length === 0
-        ) {
-          delete obj[key];
+        if (typeof obj[key] === 'object') {
+          fixAll(obj[key]);
         }
       }
     }
@@ -100,11 +100,12 @@
     function sendFlex() {
       const raw = document.getElementById("jsonInput").value.trim();
       const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
+
       if (!raw) return alert("⚠️ 請貼上 Flex JSON");
 
       try {
         let parsed = JSON.parse(raw);
-        fixJsonStructure(parsed);
+        fixAll(parsed);
 
         const message = (
           parsed.type === "flex" && parsed.altText && parsed.contents
