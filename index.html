@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>Flex 卡片分享器 v2.7</title>
+  <title>Flex 卡片分享器 v2.9</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
@@ -60,7 +60,7 @@
 </head>
 <body>
   <div class="card">
-    <h1>✨ Flex 卡片分享器 v2.7</h1>
+    <h1>✨ Flex 卡片分享器 v2.9</h1>
     <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
     <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，emoji、漸層、變色按鈕、多卡、carousel 通通支援"></textarea>
     <button onclick="sendFlex()">📤 分享給 LINE 好友</button>
@@ -73,27 +73,44 @@
       })
       .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-    function sanitize(obj) {
-      if (typeof obj !== 'object' || obj === null) return null;
+    function sanitize(obj, path = "") {
+      if (typeof obj !== 'object' || obj === null) return obj;
 
-      // ✅ 轉換圖片網址格式
+      // ✅ 保留 footer 中空 box（合法間距用）
+      if (
+        obj.type === 'box' &&
+        Array.isArray(obj.contents) &&
+        obj.contents.length === 0 &&
+        path.includes("footer")
+      ) {
+        return obj;
+      }
+
+      // ❌ 其餘空 box 視為無效移除
+      if (
+        obj.type === 'box' &&
+        Array.isArray(obj.contents) &&
+        obj.contents.length === 0
+      ) {
+        return null;
+      }
+
+      // ✅ 自動轉換圖片網址格式（Google Drive → w1080）
       if (obj.url && typeof obj.url === 'string') {
-        let match = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+        const match = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
         if (match && !obj.url.includes('/u/0/')) {
           obj.url = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1080`;
         }
       }
 
-      // ✅ 移除空 box 或空 contents
-      if (obj.type === 'box' && Array.isArray(obj.contents) && obj.contents.length === 0) {
-        return null;
-      }
-
+      // 🔁 遞迴處理巢狀結構
       for (const key in obj) {
         if (Array.isArray(obj[key])) {
-          obj[key] = obj[key].map(sanitize).filter(e => e !== null);
+          obj[key] = obj[key]
+            .map((v, i) => sanitize(v, `${path}.${key}[${i}]`))
+            .filter(e => e !== null);
         } else if (typeof obj[key] === 'object') {
-          obj[key] = sanitize(obj[key]);
+          obj[key] = sanitize(obj[key], `${path}.${key}`);
         }
       }
 
