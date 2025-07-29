@@ -76,21 +76,23 @@
     function sanitize(obj) {
       if (typeof obj !== 'object' || obj === null) return obj;
 
-      // ✅ 圖片網址轉換（Google Drive 格式）
+      // ✅ 圖片網址修正
       if (obj.url && typeof obj.url === 'string') {
         const match = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
-        if (match) obj.url = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1080`;
+        if (match) {
+          obj.url = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1080`;
+        }
       }
 
-      // ❗保留空 box、保留 gradient，不刪除合法內容
-
+      // ✅ 遞迴處理所有屬性
       for (const key in obj) {
         if (Array.isArray(obj[key])) {
-          obj[key] = obj[key].map(sanitize);
+          obj[key] = obj[key].map(sanitize).filter(e => e !== null);
         } else if (typeof obj[key] === 'object') {
           obj[key] = sanitize(obj[key]);
         }
       }
+
       return obj;
     }
 
