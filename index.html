@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <title>Flex 卡片分享器 v2.0</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -25,9 +26,8 @@
         text-align: center;
         margin-bottom: 20px;
       }
-      textarea {
+      textarea, input {
         width: 100%;
-        height: 220px;
         padding: 12px;
         font-size: 15px;
         border-radius: 8px;
@@ -35,6 +35,7 @@
         box-sizing: border-box;
         font-family: monospace;
         background: #fcfcfc;
+        margin-top: 10px;
       }
       button {
         margin-top: 20px;
@@ -58,7 +59,7 @@
         background: #f1f1f1;
         border-radius: 12px;
         white-space: pre-wrap;
-        word-break: break-all;
+        word-break: break-word;
         font-size: 14px;
         line-height: 1.6;
         color: #444;
@@ -68,12 +69,25 @@
   <body>
     <div class="card">
       <h1>✨ Flex 卡片分享器 v2.0</h1>
+      <input type="text" id="altTextInput" placeholder="請輸入卡片名稱（altText，可留空）" />
       <textarea id="input" placeholder="請貼上完整的 Flex JSON，包括 emoji、linearGradient、按鈕、carousel 等格式..."></textarea>
-      <button onclick="renderPreview()">立即預覽 Flex JSON ✨</button>
-      <div class="preview" id="preview">← 在上方貼入 JSON 並點擊按鈕即可預覽</div>
+      <button onclick="renderPreview()">預覽 Flex JSON</button>
+      <button onclick="sendFlex()">📤 分享到 LINE</button>
+      <div class="preview" id="preview">← 在上方貼入 JSON 並點擊按鈕即可預覽與發送</div>
     </div>
 
     <script>
+      // 初始化 LIFF
+      liff.init({ liffId: "2007736327-ZO83VAmo" })
+        .then(() => {
+          if (!liff.isLoggedIn()) {
+            liff.login();
+          }
+        })
+        .catch((err) => {
+          alert("❌ LIFF 初始化失敗：" + err);
+        });
+
       function renderPreview() {
         const input = document.getElementById("input").value.trim();
         const preview = document.getElementById("preview");
@@ -84,6 +98,41 @@
           preview.textContent = pretty;
         } catch (e) {
           preview.textContent = "❌ JSON 格式錯誤，請檢查是否為有效的 Flex JSON";
+        }
+      }
+
+      function sendFlex() {
+        const json = document.getElementById("input").value;
+        const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
+
+        if (!json.trim()) {
+          alert("⚠️ 請貼上 Flex JSON");
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(json);
+          const message = {
+            type: "flex",
+            altText: altText,
+            contents: parsed
+          };
+
+          if (!liff.isApiAvailable("shareTargetPicker")) {
+            alert("⚠️ 裝置不支援分享功能，請改用手機");
+            return;
+          }
+
+          liff.shareTargetPicker([message]).then(() => {
+            alert("✅ 分享成功！");
+            document.getElementById("input").value = "";
+            document.getElementById("altTextInput").value = "";
+            document.getElementById("preview").textContent = "← 在上方貼入 JSON 並點擊按鈕即可預覽與發送";
+          }).catch((err) => {
+            alert("❌ 分享失敗：" + err.message);
+          });
+        } catch (e) {
+          alert("❌ JSON 格式錯誤，請重新檢查\n\n" + e.message);
         }
       }
     </script>
