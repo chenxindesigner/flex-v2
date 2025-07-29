@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Flex 卡片分享器 v2.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: #f6f6f6;
+        padding: 20px;
+        margin: 0;
+      }
+      .card {
+        max-width: 600px;
+        margin: 40px auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        padding: 24px;
+      }
+      textarea {
+        width: 100%;
+        height: 200px;
+        font-size: 14px;
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        resize: vertical;
+        box-sizing: border-box;
+      }
+      input {
+        width: 100%;
+        margin-top: 12px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      button {
+        margin-top: 20px;
+        background: linear-gradient(135deg, #56ccf2, #2f80ed);
+        color: white;
+        border: none;
+        padding: 12px 16px;
+        font-size: 16px;
+        font-weight: bold;
+        border-radius: 12px;
+        cursor: pointer;
+        width: 100%;
+      }
+      .preview {
+        white-space: pre-wrap;
+        background: #fafafa;
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 8px;
+        margin-top: 20px;
+        font-size: 13px;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>請貼上 Flex JSON</h2>
+      <textarea id="json" placeholder="請貼上完整 Flex JSON"></textarea>
+      <input id="altText" placeholder="可自訂卡片標題 (altText)" />
+      <button onclick="send()">📮 分享給 LINE 好友</button>
+      <div class="preview" id="previewBox" style="display:none"></div>
+    </div>
+
+    <script>
+      function send() {
+        const jsonText = document.getElementById("json").value.trim();
+        const altText = document.getElementById("altText").value.trim() || "Flex 卡片分享";
+
+        if (!jsonText) return alert("請先貼上 Flex JSON");
+
+        let payload;
+        try {
+          payload = JSON.parse(jsonText);
+        } catch (e) {
+          alert("JSON 格式錯誤，請檢查！");
+          return;
+        }
+
+        if (payload.type !== "flex") {
+          alert("JSON 必須以 `type: flex` 開頭");
+          return;
+        }
+
+        payload.altText = altText;
+
+        const liffPayload = {
+          type: "flex",
+          altText: payload.altText,
+          contents: payload.contents,
+        };
+
+        document.getElementById("previewBox").style.display = "block";
+        document.getElementById("previewBox").innerText = JSON.stringify(liffPayload, null, 2);
+
+        if (typeof liff !== "undefined") {
+          liff.sendMessages([liffPayload])
+            .then(() => {
+              alert("✅ 已成功傳送！");
+              document.getElementById("json").value = "";
+              document.getElementById("altText").value = "";
+              document.getElementById("previewBox").style.display = "none";
+            })
+            .catch(err => {
+              alert("❌ 傳送失敗：" + err.message);
+            });
+        } else {
+          alert("請透過 LINE 開啟分享器，才能成功傳送！");
+        }
+      }
+
+      // LIFF 初始化
+      window.onload = function () {
+        if (typeof liff !== "undefined") {
+          liff.init({ liffId: "2007736327-ZO83VAmo" });
+        }
+      };
+    </script>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  </body>
+</html>
