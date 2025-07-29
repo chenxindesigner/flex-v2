@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>Flex 卡片分享器 v2.4</title>
+  <title>Flex 卡片分享器 v2.5</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
@@ -60,9 +60,9 @@
 </head>
 <body>
   <div class="card">
-    <h1>✨ Flex 卡片分享器 v2.4</h1>
+    <h1>✨ Flex 卡片分享器 v2.5</h1>
     <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
-    <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，emoji、漸層、變色按鈕、多卡通通都能用"></textarea>
+    <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，emoji、漸層、變色按鈕、多卡、carousel 通通支援"></textarea>
     <button onclick="sendFlex()">📤 分享給 LINE 好友</button>
   </div>
 
@@ -73,28 +73,32 @@
       })
       .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-    function fixAll(obj) {
-      if (typeof obj !== 'object' || obj === null) return;
+    function sanitize(obj) {
+      if (typeof obj !== 'object' || obj === null) return obj;
 
-      // 修正圖片網址
-      if (obj.url && typeof obj.url === 'string' && obj.url.includes('lh3.googleusercontent.com/d/')) {
-        if (!obj.url.includes('=')) obj.url += '=w1080';
-      }
-
-      // 刪除空 box.contents（非刪 bubble）
-      if (
-        obj.type === 'box' &&
-        Array.isArray(obj.contents) &&
-        obj.contents.length === 0
-      ) {
-        delete obj.contents;
-      }
-
-      for (let key in obj) {
-        if (typeof obj[key] === 'object') {
-          fixAll(obj[key]);
+      // 圖片網址補參數
+      if (obj.url && typeof obj.url === 'string') {
+        const url = obj.url;
+        if (url.includes('lh3.googleusercontent.com/d/') && !url.includes('=')) {
+          obj.url = url + '=w1080';
         }
       }
+
+      // 清除空 box.contents
+      if (obj.type === 'box' && Array.isArray(obj.contents) && obj.contents.length === 0) {
+        return null; // 上層會自動過濾
+      }
+
+      // 遞迴清理
+      for (const key in obj) {
+        if (Array.isArray(obj[key])) {
+          obj[key] = obj[key].map(sanitize).filter(e => e !== null);
+        } else if (typeof obj[key] === 'object') {
+          obj[key] = sanitize(obj[key]);
+        }
+      }
+
+      return obj;
     }
 
     function sendFlex() {
@@ -105,7 +109,7 @@
 
       try {
         let parsed = JSON.parse(raw);
-        fixAll(parsed);
+        parsed = sanitize(parsed);
 
         const message = (
           parsed.type === "flex" && parsed.altText && parsed.contents
