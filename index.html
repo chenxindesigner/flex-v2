@@ -12,119 +12,80 @@
         margin: 0;
       }
       .card {
-        max-width: 600px;
+        max-width: 700px;
         margin: 40px auto;
         background: white;
         border-radius: 16px;
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-        padding: 24px;
+        box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+        padding: 30px;
+      }
+      h1 {
+        font-size: 28px;
+        color: #333;
+        text-align: center;
+        margin-bottom: 20px;
       }
       textarea {
         width: 100%;
-        height: 200px;
-        font-size: 14px;
+        height: 220px;
         padding: 12px;
-        border: 1px solid #ccc;
+        font-size: 15px;
         border-radius: 8px;
-        resize: vertical;
-        box-sizing: border-box;
-      }
-      input {
-        width: 100%;
-        margin-top: 12px;
-        padding: 10px;
         border: 1px solid #ccc;
-        border-radius: 8px;
-        font-size: 14px;
         box-sizing: border-box;
+        font-family: monospace;
+        background: #fcfcfc;
       }
       button {
         margin-top: 20px;
-        background: linear-gradient(135deg, #56ccf2, #2f80ed);
+        background: linear-gradient(135deg, #513934, #d4c0ba);
         color: white;
         border: none;
-        padding: 12px 16px;
+        padding: 14px 20px;
         font-size: 16px;
         font-weight: bold;
         border-radius: 12px;
         cursor: pointer;
         width: 100%;
+        transition: background 0.3s ease;
+      }
+      button:hover {
+        background: linear-gradient(135deg, #6e4d3a, #e0d2ca);
       }
       .preview {
+        margin-top: 30px;
+        padding: 15px;
+        background: #f1f1f1;
+        border-radius: 12px;
         white-space: pre-wrap;
-        background: #fafafa;
-        border: 1px solid #ddd;
-        padding: 12px;
-        border-radius: 8px;
-        margin-top: 20px;
-        font-size: 13px;
-        color: #333;
+        word-break: break-all;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #444;
       }
     </style>
   </head>
   <body>
     <div class="card">
-      <h2>請貼上 Flex JSON</h2>
-      <textarea id="json" placeholder="請貼上完整 Flex JSON"></textarea>
-      <input id="altText" placeholder="可自訂卡片標題 (altText)" />
-      <button onclick="send()">📮 分享給 LINE 好友</button>
-      <div class="preview" id="previewBox" style="display:none"></div>
+      <h1>✨ Flex 卡片分享器 v2.0</h1>
+      <textarea id="input" placeholder="請貼上完整的 Flex JSON，包括 emoji、linearGradient、按鈕、carousel 等格式..."></textarea>
+      <button onclick="renderPreview()">立即預覽 Flex JSON ✨</button>
+      <div class="preview" id="preview">← 在上方貼入 JSON 並點擊按鈕即可預覽</div>
     </div>
 
     <script>
-      function send() {
-        const jsonText = document.getElementById("json").value.trim();
-        const altText = document.getElementById("altText").value.trim() || "Flex 卡片分享";
+      function renderPreview() {
+        const input = document.getElementById("input").value.trim();
+        const preview = document.getElementById("preview");
 
-        if (!jsonText) return alert("請先貼上 Flex JSON");
-
-        let payload;
         try {
-          payload = JSON.parse(jsonText);
+          const parsed = JSON.parse(input);
+          const pretty = JSON.stringify(parsed, null, 2);
+          preview.textContent = pretty;
         } catch (e) {
-          alert("JSON 格式錯誤，請檢查！");
-          return;
-        }
-
-        if (payload.type !== "flex") {
-          alert("JSON 必須以 `type: flex` 開頭");
-          return;
-        }
-
-        payload.altText = altText;
-
-        const liffPayload = {
-          type: "flex",
-          altText: payload.altText,
-          contents: payload.contents,
-        };
-
-        document.getElementById("previewBox").style.display = "block";
-        document.getElementById("previewBox").innerText = JSON.stringify(liffPayload, null, 2);
-
-        if (typeof liff !== "undefined") {
-          liff.sendMessages([liffPayload])
-            .then(() => {
-              alert("✅ 已成功傳送！");
-              document.getElementById("json").value = "";
-              document.getElementById("altText").value = "";
-              document.getElementById("previewBox").style.display = "none";
-            })
-            .catch(err => {
-              alert("❌ 傳送失敗：" + err.message);
-            });
-        } else {
-          alert("請透過 LINE 開啟分享器，才能成功傳送！");
+          preview.textContent = "❌ JSON 格式錯誤，請檢查是否為有效的 Flex JSON";
         }
       }
-
-      // LIFF 初始化
-      window.onload = function () {
-        if (typeof liff !== "undefined") {
-          liff.init({ liffId: "2007736327-ZO83VAmo" });
-        }
-      };
     </script>
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   </body>
 </html>
