@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>Flex 卡片分享器 v2.2</title>
+  <title>Flex 卡片分享器 v2.3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
@@ -60,9 +60,9 @@
 </head>
 <body>
   <div class="card">
-    <h1>✨ Flex 卡片分享器 v2.2</h1>
+    <h1>✨ Flex 卡片分享器 v2.3</h1>
     <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
-    <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，包括 emoji、漸層、按鈕、carousel、多張 bubble..."></textarea>
+    <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，emoji、漸層、變色按鈕、多卡通通都能用"></textarea>
     <button onclick="sendFlex()">📤 分享給 LINE 好友</button>
   </div>
 
@@ -73,35 +73,26 @@
       })
       .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-    function fixImageUrls(obj) {
+    function fixJsonStructure(obj) {
       if (typeof obj !== 'object' || obj === null) return;
       for (let key in obj) {
-        if (key === 'url' && typeof obj[key] === 'string' && obj[key].includes('lh3.googleusercontent.com/d/')) {
-          if (!obj[key].includes('=')) obj[key] += '=w1080';
-        } else {
-          fixImageUrls(obj[key]);
-        }
-      }
-    }
+        const val = obj[key];
 
-    function removeEmptyContents(obj) {
-      if (typeof obj !== 'object' || obj === null) return;
-      if (Array.isArray(obj)) {
-        for (let i = obj.length - 1; i >= 0; i--) {
-          if (
-            obj[i] &&
-            obj[i].contents &&
-            Array.isArray(obj[i].contents) &&
-            obj[i].contents.length === 0
-          ) {
-            obj.splice(i, 1);
-          } else {
-            removeEmptyContents(obj[i]);
-          }
+        // 修正圖片網址
+        if (key === 'url' && typeof val === 'string' && val.includes('lh3.googleusercontent.com/d/')) {
+          if (!val.includes('=')) obj[key] += '=w1080';
         }
-      } else {
-        for (let key in obj) {
-          removeEmptyContents(obj[key]);
+
+        // 遞迴處理內部
+        if (typeof val === 'object') fixJsonStructure(val);
+
+        // 刪掉空 contents: []
+        if (
+          key === 'contents' &&
+          Array.isArray(val) &&
+          val.length === 0
+        ) {
+          delete obj[key];
         }
       }
     }
@@ -109,24 +100,15 @@
     function sendFlex() {
       const raw = document.getElementById("jsonInput").value.trim();
       const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
-
       if (!raw) return alert("⚠️ 請貼上 Flex JSON");
 
       try {
         let parsed = JSON.parse(raw);
-        fixImageUrls(parsed);
-        removeEmptyContents(parsed);
+        fixJsonStructure(parsed);
 
-        let message;
-        if (parsed.type === "flex" && parsed.altText && parsed.contents) {
-          message = parsed; // 已是完整 Flex 結構
-        } else {
-          message = {
-            type: "flex",
-            altText: altText,
-            contents: parsed
-          };
-        }
+        const message = (
+          parsed.type === "flex" && parsed.altText && parsed.contents
+        ) ? parsed : { type: "flex", altText: altText, contents: parsed };
 
         if (!liff.isApiAvailable("shareTargetPicker")) {
           return alert("⚠️ 此裝置不支援分享功能，請改用手機 LINE App 開啟");
@@ -140,7 +122,7 @@
           })
           .catch((err) => alert("❌ 分享失敗：" + err));
       } catch (e) {
-        alert("❌ JSON 格式錯誤，請檢查格式\n\n" + e.message);
+        alert("❌ JSON 格式錯誤，請檢查內容\n\n" + e.message);
       }
     }
   </script>
