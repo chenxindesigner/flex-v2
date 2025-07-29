@@ -1,134 +1,60 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8" />
-  <title>Flex 卡片分享器 v2.7</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #f6f6f6;
-      padding: 20px;
-      margin: 0;
-    }
-    .card {
-      max-width: 800px;
-      margin: 40px auto;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-      padding: 30px;
-    }
-    h1 {
-      font-size: 28px;
-      color: #333;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    textarea, input {
-      width: 100%;
-      font-size: 15px;
-      padding: 12px;
-      margin-top: 12px;
-      margin-bottom: 12px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      box-sizing: border-box;
-      font-family: monospace;
-    }
-    textarea {
-      height: 400px;
-      resize: vertical;
-    }
-    button {
-      background: linear-gradient(135deg, #513934, #d4c0ba);
-      color: white;
-      border: none;
-      padding: 14px 20px;
-      font-size: 16px;
-      font-weight: bold;
-      border-radius: 12px;
-      cursor: pointer;
-      width: 100%;
-      transition: background 0.3s ease;
-    }
-    button:hover {
-      background: linear-gradient(135deg, #6e4d3a, #e0d2ca);
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>✨ Flex 卡片分享器 v2.7</h1>
-    <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
-    <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，emoji、漸層、變色按鈕、多卡、carousel 通通支援"></textarea>
-    <button onclick="sendFlex()">📤 分享給 LINE 好友</button>
-  </div>
+<script>
+  liff.init({ liffId: "2007736327-ZO83VAmo" })
+    .then(() => {
+      if (!liff.isLoggedIn()) liff.login();
+    })
+    .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-  <script>
-    liff.init({ liffId: "2007736327-ZO83VAmo" })
-      .then(() => {
-        if (!liff.isLoggedIn()) liff.login();
-      })
-      .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
+  function sanitize(obj) {
+    if (typeof obj !== 'object' || obj === null) return obj;
 
-    function sanitize(obj) {
-      if (typeof obj !== 'object' || obj === null) return null;
-
-      // ✅ 轉換圖片網址格式
-      if (obj.url && typeof obj.url === 'string') {
-        let match = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
-        if (match && !obj.url.includes('/u/0/')) {
-          obj.url = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1080`;
-        }
-      }
-
-      // ✅ 移除空 box 或空 contents
-      if (obj.type === 'box' && Array.isArray(obj.contents) && obj.contents.length === 0) {
-        return null;
-      }
-
-      for (const key in obj) {
-        if (Array.isArray(obj[key])) {
-          obj[key] = obj[key].map(sanitize).filter(e => e !== null);
-        } else if (typeof obj[key] === 'object') {
-          obj[key] = sanitize(obj[key]);
-        }
-      }
-
-      return obj;
-    }
-
-    function sendFlex() {
-      const raw = document.getElementById("jsonInput").value.trim();
-      const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
-
-      if (!raw) return alert("⚠️ 請貼上 Flex JSON");
-
-      try {
-        let parsed = JSON.parse(raw);
-        parsed = sanitize(parsed);
-
-        const message = (
-          parsed.type === "flex" && parsed.altText && parsed.contents
-        ) ? parsed : { type: "flex", altText: altText, contents: parsed };
-
-        if (!liff.isApiAvailable("shareTargetPicker")) {
-          return alert("⚠️ 此裝置不支援分享功能，請改用手機 LINE App 開啟");
-        }
-
-        liff.shareTargetPicker([message])
-          .then(() => {
-            alert("✅ 分享成功！");
-            document.getElementById("jsonInput").value = "";
-            document.getElementById("altTextInput").value = "";
-          })
-          .catch((err) => alert("❌ 分享失敗：" + err));
-      } catch (e) {
-        alert("❌ JSON 格式錯誤，請檢查內容\n\n" + e.message);
+    // ✅ 修正圖片網址格式
+    if (obj.url && typeof obj.url === 'string') {
+      let match = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) {
+        obj.url = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1080`;
       }
     }
-  </script>
-</body>
-</html>
+
+    // ✅ 正確遞迴處理物件與陣列（不再強制砍空 box）
+    for (const key in obj) {
+      if (Array.isArray(obj[key])) {
+        obj[key] = obj[key].map(sanitize);
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        obj[key] = sanitize(obj[key]);
+      }
+    }
+
+    return obj;
+  }
+
+  function sendFlex() {
+    const raw = document.getElementById("jsonInput").value.trim();
+    const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
+
+    if (!raw) return alert("⚠️ 請貼上 Flex JSON");
+
+    try {
+      let parsed = JSON.parse(raw);
+      parsed = sanitize(parsed);
+
+      const message = (
+        parsed.type === "flex" && parsed.altText && parsed.contents
+      ) ? parsed : { type: "flex", altText: altText, contents: parsed };
+
+      if (!liff.isApiAvailable("shareTargetPicker")) {
+        return alert("⚠️ 此裝置不支援分享功能，請改用手機 LINE App 開啟");
+      }
+
+      liff.shareTargetPicker([message])
+        .then(() => {
+          alert("✅ 分享成功！");
+          document.getElementById("jsonInput").value = "";
+          document.getElementById("altTextInput").value = "";
+        })
+        .catch((err) => alert("❌ 分享失敗：" + err));
+    } catch (e) {
+      alert("❌ JSON 格式錯誤，請檢查內容\n\n" + e.message);
+    }
+  }
+</script>
