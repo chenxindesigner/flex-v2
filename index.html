@@ -28,16 +28,16 @@
     }
     textarea, input {
       width: 100%;
-      padding: 12px;
       font-size: 15px;
+      padding: 12px;
+      margin-top: 12px;
+      margin-bottom: 12px;
       border-radius: 8px;
       border: 1px solid #ccc;
       box-sizing: border-box;
-      margin-bottom: 12px;
       font-family: monospace;
     }
     button {
-      margin-top: 10px;
       background: linear-gradient(135deg, #513934, #d4c0ba);
       color: white;
       border: none;
@@ -57,9 +57,9 @@
 <body>
   <div class="card">
     <h1>✨ Flex 卡片分享器 v2.0</h1>
-    <input type="text" id="altTextInput" placeholder="請輸入卡片 altText（可留空）">
-    <textarea id="jsonInput" rows="14" placeholder="請貼上完整的 Flex JSON，包括 emoji、linearGradient、按鈕、carousel 等格式..."></textarea>
-    <button onclick="sendFlex()">🚀 分享給好友 Flex JSON</button>
+    <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
+    <textarea id="jsonInput" placeholder="請貼上完整的 Flex JSON，包括 emoji、linearGradient、按鈕、carousel 等格式..."></textarea>
+    <button onclick="sendFlex()">📤 分享給 LINE 好友</button>
   </div>
 
   <script>
@@ -91,7 +91,7 @@
         };
 
         if (!liff.isApiAvailable("shareTargetPicker")) {
-          alert("⚠️ 裝置不支援分享功能，請改用手機");
+          alert("⚠️ 目前裝置不支援分享功能，請改用手機");
           return;
         }
 
@@ -102,9 +102,8 @@
         }).catch((err) => {
           alert("❌ 分享失敗：" + err);
         });
-
       } catch (e) {
-        alert("❌ JSON 格式錯誤，請檢查\n\n" + e.message);
+        alert("❌ JSON 格式錯誤，請重新檢查\n\n" + e.message);
       }
     }
   </script>
