@@ -5,26 +5,18 @@
     })
     .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-  function sanitize(obj) {
+  function deepClean(obj) {
     if (typeof obj !== 'object' || obj === null) return obj;
 
-    // ✅ 修正圖片網址格式
-    if (obj.url && typeof obj.url === 'string') {
-      let match = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
-      if (match) {
-        obj.url = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1080`;
-      }
-    }
+    // 不再修改圖片 URL
 
-    // ✅ 正確遞迴處理物件與陣列（不再強制砍空 box）
     for (const key in obj) {
       if (Array.isArray(obj[key])) {
-        obj[key] = obj[key].map(sanitize);
-      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-        obj[key] = sanitize(obj[key]);
+        obj[key] = obj[key].map(deepClean).filter(e => e !== null);
+      } else if (typeof obj[key] === 'object') {
+        obj[key] = deepClean(obj[key]);
       }
     }
-
     return obj;
   }
 
@@ -36,24 +28,34 @@
 
     try {
       let parsed = JSON.parse(raw);
-      parsed = sanitize(parsed);
 
-      const message = (
-        parsed.type === "flex" && parsed.altText && parsed.contents
-      ) ? parsed : { type: "flex", altText: altText, contents: parsed };
+      // 如果外層不是完整 flex 結構，自動包一層
+      if (!(parsed.type === "flex" && parsed.altText && parsed.contents)) {
+        parsed = {
+          type: "flex",
+          altText: altText,
+          contents: parsed
+        };
+      }
+
+      parsed = deepClean(parsed);
 
       if (!liff.isApiAvailable("shareTargetPicker")) {
         return alert("⚠️ 此裝置不支援分享功能，請改用手機 LINE App 開啟");
       }
 
-      liff.shareTargetPicker([message])
+      liff.shareTargetPicker([parsed])
         .then(() => {
           alert("✅ 分享成功！");
           document.getElementById("jsonInput").value = "";
           document.getElementById("altTextInput").value = "";
         })
-        .catch((err) => alert("❌ 分享失敗：" + err));
+        .catch((err) => {
+          console.error("❌ 分享失敗：", err);
+          alert("❌ 分享失敗：" + err.message);
+        });
     } catch (e) {
+      console.error("❌ JSON 格式錯誤：", e);
       alert("❌ JSON 格式錯誤，請檢查內容\n\n" + e.message);
     }
   }
