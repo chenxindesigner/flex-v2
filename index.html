@@ -73,6 +73,42 @@
       })
       .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
+    // ✅ 新增：統一處理 action，支援「文字觸發（message）」簡寫
+    function normalizeActions(obj) {
+      if (!obj || typeof obj !== 'object') return obj;
+
+      // 處理 action 物件（button / image / text 都可能帶 action）
+      if (obj.action && typeof obj.action === 'object') {
+        const a = obj.action;
+
+        // 支援三種寫法：
+        // A. 原生：{ type:"message", text:"..." } -> 直接通過
+        // B. 簡寫：{ type:"uri", uri:"msg:文字...", label:"..." } -> 轉為 message
+        // C. 自定欄位：{ type:"uri", actionText:"文字...", label:"..." } -> 轉為 message
+        if (a.type === 'uri' && typeof a.uri === 'string' && a.uri.startsWith('msg:')) {
+          obj.action = {
+            type: 'message',
+            label: a.label || '',
+            text: a.uri.slice(4).trim()
+          };
+        } else if (a.type === 'uri' && typeof a.actionText === 'string' && a.actionText.trim()) {
+          obj.action = {
+            type: 'message',
+            label: a.label || '',
+            text: a.actionText.trim()
+          };
+        }
+      }
+
+      // 遞迴處理所有巢狀屬性
+      for (const k in obj) {
+        if (obj[k] && typeof obj[k] === 'object') {
+          obj[k] = normalizeActions(obj[k]);
+        }
+      }
+      return obj;
+    }
+
     function sanitize(obj, path = "") {
       if (typeof obj !== 'object' || obj === null) return obj;
 
@@ -113,6 +149,9 @@
           obj[key] = sanitize(obj[key], `${path}.${key}`);
         }
       }
+
+      // ✅ 加這一行：把文字觸發簡寫/自定欄位轉成 LINE message action
+      obj = normalizeActions(obj);
 
       return obj;
     }
