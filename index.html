@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>Flex 卡片分享器 v2.9</title>
+  <title>Flex 卡片分享器 v3.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
@@ -38,9 +38,10 @@
       font-family: monospace;
     }
     textarea {
-      height: 400px;
+      height: 360px;
       resize: vertical;
     }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     button {
       background: linear-gradient(135deg, #513934, #d4c0ba);
       color: white;
@@ -53,59 +54,61 @@
       width: 100%;
       transition: background 0.3s ease;
     }
-    button:hover {
-      background: linear-gradient(135deg, #6e4d3a, #e0d2ca);
-    }
+    button:hover { background: linear-gradient(135deg, #6e4d3a, #e0d2ca); }
+    .hint { font-size: 12px; color: #666; margin-top: -8px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>✨ Flex 卡片分享器 v2.9</h1>
+    <h1>✨ Flex 卡片分享器 v3.0</h1>
     <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
     <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON，emoji、漸層、變色按鈕、多卡、carousel 通通支援"></textarea>
-    <button onclick="sendFlex()">📤 分享給 LINE 好友</button>
+    <input id="oaIdInput" type="text" placeholder="（選填）你的 LINE 官方帳號 ID，例如 @abcdefg。只需填一次，之後會自動記住。" />
+    <div class="hint">※ 「送到好友」需要 OA ID 才能把文字觸發轉成可分享的連結；「送到自己OA」可保留原始 message action。</div>
+    <div class="row">
+      <button onclick="sendToFriends()">📤 送到好友（可分享）</button>
+      <button onclick="sendToMyOA()">💬 送到自己OA（保留文字觸發）</button>
+    </div>
   </div>
 
   <script>
+    // —— 初始化 LIFF ——
     liff.init({ liffId: "2007736327-ZO83VAmo" })
       .then(() => {
         if (!liff.isLoggedIn()) liff.login();
+        const saved = localStorage.getItem('OA_ID');
+        if (saved) document.getElementById('oaIdInput').value = saved;
       })
       .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-    // --- 新增：統一處理 action，支援「文字觸發（message）」簡寫 ---
-    function normalizeActions(obj) {
-      if (!obj || typeof obj !== 'object') return obj;
-      if (obj.action && typeof obj.action === 'object') {
-        const a = obj.action;
-        // A. 原生 message 直接通過
-        // B. 簡寫：uri 以 "msg:" 開頭 -> 轉 message
-        // C. 自定欄位：存在 actionText -> 轉 message
-        if (a.type === 'uri' && typeof a.uri === 'string' && a.uri.startsWith('msg:')) {
-          obj.action = { type: 'message', label: a.label || '', text: a.uri.slice(4).trim() };
-        } else if (a.type === 'uri' && typeof a.actionText === 'string' && a.actionText.trim()) {
-          obj.action = { type: 'message', label: a.label || '', text: a.actionText.trim() };
-        }
-      }
-      for (const k in obj) {
-        if (obj[k] && typeof obj[k] === 'object') obj[k] = normalizeActions(obj[k]);
-      }
-      return obj;
+    // —— 工具：讀寫 OA ID（本機記住一次） ——
+    function getOAID() {
+      const v = (document.getElementById('oaIdInput').value || '').trim();
+      if (v) localStorage.setItem('OA_ID', v);
+      return v;
     }
 
-    // 清理 + 圖片網址正規化
+    // —— 文字 → OA 訊息 URI（可分享，會開你的 OA 並帶入文字） ——
+    function toOAMessageUri(oaId, text) {
+      const t = (text || "").toString().trim();
+      if (!oaId || !oaId.startsWith('@')) return null;
+      if (!t) return null;
+      return `https://line.me/R/oaMessage/${encodeURIComponent(oaId)}/?${encodeURIComponent(t)}`;
+    }
+
+    // —— 清理 + 圖片網址正規化（保留你原本邏輯） ——
     function sanitize(obj, path = "") {
       if (typeof obj !== 'object' || obj === null) return obj;
 
-      // ✅ 保留 footer 空 box（當 spacer）
+      // 保留 footer 空 box（當 spacer）
       if (obj.type === 'box' && Array.isArray(obj.contents) && obj.contents.length === 0 && path.includes("footer")) {
         return obj;
       }
-      // ❌ 其餘空 box 移除
+      // 其餘空 box 移除
       if (obj.type === 'box' && Array.isArray(obj.contents) && obj.contents.length === 0) {
         return null;
       }
-      // ✅ Google Drive 圖片正規化（若你本來就有 w1080 也不影響）
+      // Google Drive 圖片正規化
       if (obj.url && typeof obj.url === 'string') {
         const m = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
         if (m && !obj.url.includes('/u/0/')) {
@@ -121,73 +124,107 @@
           obj[key] = sanitize(obj[key], `${path}.${key}`);
         }
       }
-
-      // ✅ 將簡寫/自定欄位 action 轉為 message
-      obj = normalizeActions(obj);
       return obj;
     }
 
-    // 將輸入自動包成合法 Flex
+    // —— 包成合法 Flex ——
     function toFlexMessage(parsed, altTextFallback) {
-      // 如果使用者直接貼 bubble 或 carousel，這裡自動包成 flex
       const isBubbleOrCarousel = parsed && typeof parsed === 'object' &&
         ((parsed.type === 'bubble') || (parsed.type === 'carousel'));
-
-      if (isBubbleOrCarousel) {
-        return { type: "flex", altText: altTextFallback, contents: parsed };
-      }
-
-      // 已經是 flex（但可能少欄位），補 altText
+      if (isBubbleOrCarousel) return { type: "flex", altText: altTextFallback, contents: parsed };
       if (parsed && parsed.type === 'flex') {
         if (!parsed.altText) parsed.altText = altTextFallback;
         return parsed;
       }
-
-      // 其他情況，當作錯誤
       return null;
     }
 
-    async function sendFlex() {
+    // —— 把 message action 轉成 OA URI（僅在送到好友時使用） ——
+    function convertMessageActionsToUri(obj, oaId) {
+      if (!obj || typeof obj !== 'object') return obj;
+      if (obj.action && typeof obj.action === 'object') {
+        const a = obj.action;
+        // 原生 message
+        if (a.type === 'message' && typeof a.text === 'string') {
+          const uri = toOAMessageUri(oaId, a.text);
+          if (!uri) throw new Error("需要 OA ID（例如 @abcdefg）才能分享含 message action 的卡片。");
+          obj.action = { type: 'uri', label: a.label || '', uri };
+        }
+        // 簡寫：uri: "msg:文字"
+        else if (a.type === 'uri' && typeof a.uri === 'string' && a.uri.startsWith('msg:')) {
+          const msg = a.uri.slice(4).trim();
+          const uri = toOAMessageUri(oaId, msg);
+          if (!uri) throw new Error("需要 OA ID（例如 @abcdefg）才能分享含 msg: 的按鈕。");
+          obj.action = { type: 'uri', label: a.label || '', uri };
+        }
+        // 自定欄位：actionText
+        else if (a.type === 'uri' && typeof a.actionText === 'string' && a.actionText.trim()) {
+          const uri = toOAMessageUri(oaId, a.actionText.trim());
+          if (!uri) throw new Error("需要 OA ID（例如 @abcdefg）才能分享含 actionText 的按鈕。");
+          obj.action = { type: 'uri', label: a.label || '', uri };
+        }
+      }
+      for (const k in obj) {
+        if (obj[k] && typeof obj[k] === 'object') obj[k] = convertMessageActionsToUri(obj[k], oaId);
+      }
+      return obj;
+    }
+
+    // —— 送到好友（可分享） ——
+    async function sendToFriends() {
       const raw = document.getElementById("jsonInput").value.trim();
       const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
-      if (!raw) return alert("⚠️ 請貼上 Flex JSON");
+      const oaId = getOAID();
 
+      if (!raw) return alert("⚠️ 請貼上 Flex JSON");
       if (!liff.isApiAvailable("shareTargetPicker")) {
         return alert("⚠️ 此環境不支援分享功能，請用手機 LINE App 內開啟此頁（LIFF）");
+      }
+      if (!oaId || !oaId.startsWith('@')) {
+        return alert("⚠️ 需要填一次你的 OA ID（例如 @abcdefg），我會幫你把文字觸發轉成可分享的按鈕。");
       }
 
       try {
         let parsed = JSON.parse(raw);
         parsed = sanitize(parsed);
 
+        // 轉換 message → OA URI（避免 shareTargetPicker 丟卡片）
+        parsed = convertMessageActionsToUri(parsed, oaId);
+
         const message = toFlexMessage(parsed, altText);
-        if (!message) {
-          return alert("❌ 這不是合法的 Flex 結構（需為 bubble/carousel，或完整 flex）");
-        }
+        if (!message) return alert("❌ 這不是合法的 Flex 結構（需為 bubble/carousel，或完整 flex）");
 
-        // --- 核心：更嚴謹的結果判斷 + 安全回退 ---
-        // 有些情況（使用者取消/裝置限制），SDK 會回傳 null，我們不視為成功
-        const payload = [message];
+        const res = await liff.shareTargetPicker([ message ]);
+        if (res === null) return alert("ℹ️ 你已取消分享（未送出）");
 
-        // 若你擔心偶發拒收，可打開這行：同時帶一段小文字，便於你確認是否送達
-        // payload.unshift({ type: "text", text: "（測試）剛剛送出了一張 Flex 卡片" });
-
-        const res = await liff.shareTargetPicker(payload);
-
-        // 使用者關掉面板（取消） -> res 為 null
-        if (res === null) {
-          return alert("ℹ️ 你已取消分享（未送出）");
-        }
-
-        // 一些裝置會回傳 { status: { ... } }，這裡保留判斷但不強制
-        // console.log("shareTargetPicker result:", res);
-
-        alert("✅ 分享已送出！若仍看不到訊息，請改用：\n1) 在手機 LINE App 內開啟此 LIFF 再試\n2) 在 Flex JSON 前先加一段文字測試（已支援）");
+        alert("✅ 已送出！對方可直接點按鈕開你的 OA 並帶入文字。");
         document.getElementById("jsonInput").value = "";
         document.getElementById("altTextInput").value = "";
 
       } catch (e) {
-        alert("❌ JSON/送出失敗：\n" + e.message);
+        alert("❌ 送出失敗：\n" + e.message);
+      }
+    }
+
+    // —— 送到自己 OA（保留原始 message action） ——
+    async function sendToMyOA() {
+      const raw = document.getElementById("jsonInput").value.trim();
+      const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
+      if (!raw) return alert("⚠️ 請貼上 Flex JSON");
+
+      try {
+        let parsed = JSON.parse(raw);
+        parsed = sanitize(parsed);
+        const message = toFlexMessage(parsed, altText);
+        if (!message) return alert("❌ 這不是合法的 Flex 結構（需為 bubble/carousel，或完整 flex）");
+
+        await liff.sendMessages([ message ]);
+        alert("✅ 已發送到你與官方帳號的聊天；如需給別人，請在 LINE 內長按『轉傳』。");
+        document.getElementById("jsonInput").value = "";
+        document.getElementById("altTextInput").value = "";
+
+      } catch (e) {
+        alert("❌ 送出失敗：\n" + e.message);
       }
     }
   </script>
