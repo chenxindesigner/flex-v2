@@ -73,116 +73,121 @@
       })
       .catch((err) => alert("❌ LIFF 初始化失敗：" + err));
 
-    // ✅ 新增：統一處理 action，支援「文字觸發（message）」簡寫
+    // --- 新增：統一處理 action，支援「文字觸發（message）」簡寫 ---
     function normalizeActions(obj) {
       if (!obj || typeof obj !== 'object') return obj;
-
-      // 處理 action 物件（button / image / text 都可能帶 action）
       if (obj.action && typeof obj.action === 'object') {
         const a = obj.action;
-
-        // 支援三種寫法：
-        // A. 原生：{ type:"message", text:"..." } -> 直接通過
-        // B. 簡寫：{ type:"uri", uri:"msg:文字...", label:"..." } -> 轉為 message
-        // C. 自定欄位：{ type:"uri", actionText:"文字...", label:"..." } -> 轉為 message
+        // A. 原生 message 直接通過
+        // B. 簡寫：uri 以 "msg:" 開頭 -> 轉 message
+        // C. 自定欄位：存在 actionText -> 轉 message
         if (a.type === 'uri' && typeof a.uri === 'string' && a.uri.startsWith('msg:')) {
-          obj.action = {
-            type: 'message',
-            label: a.label || '',
-            text: a.uri.slice(4).trim()
-          };
+          obj.action = { type: 'message', label: a.label || '', text: a.uri.slice(4).trim() };
         } else if (a.type === 'uri' && typeof a.actionText === 'string' && a.actionText.trim()) {
-          obj.action = {
-            type: 'message',
-            label: a.label || '',
-            text: a.actionText.trim()
-          };
+          obj.action = { type: 'message', label: a.label || '', text: a.actionText.trim() };
         }
       }
-
-      // 遞迴處理所有巢狀屬性
       for (const k in obj) {
-        if (obj[k] && typeof obj[k] === 'object') {
-          obj[k] = normalizeActions(obj[k]);
-        }
+        if (obj[k] && typeof obj[k] === 'object') obj[k] = normalizeActions(obj[k]);
       }
       return obj;
     }
 
+    // 清理 + 圖片網址正規化
     function sanitize(obj, path = "") {
       if (typeof obj !== 'object' || obj === null) return obj;
 
-      // ✅ 保留 footer 中空 box（合法間距用）
-      if (
-        obj.type === 'box' &&
-        Array.isArray(obj.contents) &&
-        obj.contents.length === 0 &&
-        path.includes("footer")
-      ) {
+      // ✅ 保留 footer 空 box（當 spacer）
+      if (obj.type === 'box' && Array.isArray(obj.contents) && obj.contents.length === 0 && path.includes("footer")) {
         return obj;
       }
-
-      // ❌ 其餘空 box 視為無效移除
-      if (
-        obj.type === 'box' &&
-        Array.isArray(obj.contents) &&
-        obj.contents.length === 0
-      ) {
+      // ❌ 其餘空 box 移除
+      if (obj.type === 'box' && Array.isArray(obj.contents) && obj.contents.length === 0) {
         return null;
       }
-
-      // ✅ 自動轉換圖片網址格式（Google Drive → w1080）
+      // ✅ Google Drive 圖片正規化（若你本來就有 w1080 也不影響）
       if (obj.url && typeof obj.url === 'string') {
-        const match = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
-        if (match && !obj.url.includes('/u/0/')) {
-          obj.url = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1080`;
+        const m = obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+        if (m && !obj.url.includes('/u/0/')) {
+          obj.url = `https://lh3.googleusercontent.com/u/0/d/${m[1]}=w1080`;
         }
       }
 
-      // 🔁 遞迴處理巢狀結構
+      // 遞迴處理
       for (const key in obj) {
         if (Array.isArray(obj[key])) {
-          obj[key] = obj[key]
-            .map((v, i) => sanitize(v, `${path}.${key}[${i}]`))
-            .filter(e => e !== null);
+          obj[key] = obj[key].map((v, i) => sanitize(v, `${path}.${key}[${i}]`)).filter(e => e !== null);
         } else if (typeof obj[key] === 'object') {
           obj[key] = sanitize(obj[key], `${path}.${key}`);
         }
       }
 
-      // ✅ 加這一行：把文字觸發簡寫/自定欄位轉成 LINE message action
+      // ✅ 將簡寫/自定欄位 action 轉為 message
       obj = normalizeActions(obj);
-
       return obj;
     }
 
-    function sendFlex() {
+    // 將輸入自動包成合法 Flex
+    function toFlexMessage(parsed, altTextFallback) {
+      // 如果使用者直接貼 bubble 或 carousel，這裡自動包成 flex
+      const isBubbleOrCarousel = parsed && typeof parsed === 'object' &&
+        ((parsed.type === 'bubble') || (parsed.type === 'carousel'));
+
+      if (isBubbleOrCarousel) {
+        return { type: "flex", altText: altTextFallback, contents: parsed };
+      }
+
+      // 已經是 flex（但可能少欄位），補 altText
+      if (parsed && parsed.type === 'flex') {
+        if (!parsed.altText) parsed.altText = altTextFallback;
+        return parsed;
+      }
+
+      // 其他情況，當作錯誤
+      return null;
+    }
+
+    async function sendFlex() {
       const raw = document.getElementById("jsonInput").value.trim();
       const altText = document.getElementById("altTextInput").value || "這是一則 Flex 卡片";
-
       if (!raw) return alert("⚠️ 請貼上 Flex JSON");
+
+      if (!liff.isApiAvailable("shareTargetPicker")) {
+        return alert("⚠️ 此環境不支援分享功能，請用手機 LINE App 內開啟此頁（LIFF）");
+      }
 
       try {
         let parsed = JSON.parse(raw);
         parsed = sanitize(parsed);
 
-        const message = (
-          parsed.type === "flex" && parsed.altText && parsed.contents
-        ) ? parsed : { type: "flex", altText: altText, contents: parsed };
-
-        if (!liff.isApiAvailable("shareTargetPicker")) {
-          return alert("⚠️ 此裝置不支援分享功能，請改用手機 LINE App 開啟");
+        const message = toFlexMessage(parsed, altText);
+        if (!message) {
+          return alert("❌ 這不是合法的 Flex 結構（需為 bubble/carousel，或完整 flex）");
         }
 
-        liff.shareTargetPicker([message])
-          .then(() => {
-            alert("✅ 分享成功！");
-            document.getElementById("jsonInput").value = "";
-            document.getElementById("altTextInput").value = "";
-          })
-          .catch((err) => alert("❌ 分享失敗：" + err));
+        // --- 核心：更嚴謹的結果判斷 + 安全回退 ---
+        // 有些情況（使用者取消/裝置限制），SDK 會回傳 null，我們不視為成功
+        const payload = [message];
+
+        // 若你擔心偶發拒收，可打開這行：同時帶一段小文字，便於你確認是否送達
+        // payload.unshift({ type: "text", text: "（測試）剛剛送出了一張 Flex 卡片" });
+
+        const res = await liff.shareTargetPicker(payload);
+
+        // 使用者關掉面板（取消） -> res 為 null
+        if (res === null) {
+          return alert("ℹ️ 你已取消分享（未送出）");
+        }
+
+        // 一些裝置會回傳 { status: { ... } }，這裡保留判斷但不強制
+        // console.log("shareTargetPicker result:", res);
+
+        alert("✅ 分享已送出！若仍看不到訊息，請改用：\n1) 在手機 LINE App 內開啟此 LIFF 再試\n2) 在 Flex JSON 前先加一段文字測試（已支援）");
+        document.getElementById("jsonInput").value = "";
+        document.getElementById("altTextInput").value = "";
+
       } catch (e) {
-        alert("❌ JSON 格式錯誤，請檢查內容\n\n" + e.message);
+        alert("❌ JSON/送出失敗：\n" + e.message);
       }
     }
   </script>
