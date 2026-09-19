@@ -14,7 +14,7 @@
     .eyebrow{margin:0 0 12px;font-family:Georgia,serif;font-size:12px;letter-spacing:.28em;color:#a65f58}
     h1{margin:0;font-family:Georgia,"Noto Serif TC",serif;font-size:34px;font-weight:500;letter-spacing:.05em}
     .name{margin:10px 0 0;font-family:"Noto Serif TC",serif;font-size:20px;letter-spacing:.28em}
-    .line{width:42px;height:1px;margin:24px auto;background:#a65f58}
+    .line{width:86px;height:1px;margin:18px auto 24px;background:#a65f58}
     .service{margin:0;color:#6f6a67;font-size:14px;line-height:1.9;letter-spacing:.04em}
     button{width:100%;margin-top:30px;padding:14px 18px;border:0;border-radius:12px;background:#d7c3c4;color:#382321;font-size:16px;font-weight:700;cursor:pointer}
     button:active{transform:scale(.99)}
@@ -32,7 +32,7 @@
     <div class="line"></div>
     <p class="service">LINE OA 建置｜AI 自動化｜視覺設計<br>從品牌畫面 到真正好用的系統</p>
     <button id="shareButton" type="button" disabled>準備中⋯</button>
-    <p class="hint">點擊後可選擇 LINE 好友或群組<br>分享完整數位名片</p>
+    <p class="hint">歡迎分享給身邊有需求的朋友<br>成功合作可享推薦獎金</p>\n    <p class="hint" style="margin-top:6px;font-size:11px">推薦回饋請使用本頁分享按鈕，系統才會記錄推薦來源</p>
     <p id="status" class="status" role="status"></p>
     <p id="memberCode" class="code"></p>
   </main>
@@ -255,7 +255,24 @@
               {
                 type: "box",
                 layout: "vertical",
+                margin: "md",
+                spacing: "xs",
                 contents: [
+                  {
+                    type: "text",
+                    text: "歡迎分享給身邊有需求的朋友",
+                    size: "xs",
+                    color: "#8A807C",
+                    align: "center"
+                  },
+                  {
+                    type: "text",
+                    text: "成功合作可享推薦獎金",
+                    size: "sm",
+                    weight: "bold",
+                    color: "#A65F58",
+                    align: "center"
+                  },
                   {
                     type: "button",
                     action: {
@@ -265,7 +282,8 @@
                     },
                     height: "sm",
                     color: "#d7c3c4",
-                    style: "secondary"
+                    style: "secondary",
+                    margin: "sm"
                   }
                 ]
               }
