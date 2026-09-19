@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fef9f7" />
+  <title>陳芯｜數位名片分享</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(145deg,#fef9f7,#eadfde);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;color:#55342e}
+    .card{width:min(100%,440px);padding:38px 28px 30px;background:rgba(255,255,255,.92);border:1px solid rgba(85,52,46,.1);border-radius:24px;box-shadow:0 18px 55px rgba(85,52,46,.12);text-align:center}
+    .eyebrow{margin:0 0 12px;font-family:Georgia,serif;font-size:12px;letter-spacing:.28em;color:#a65f58}
+    h1{margin:0;font-family:Georgia,"Noto Serif TC",serif;font-size:34px;font-weight:500;letter-spacing:.05em}
+    .name{margin:10px 0 0;font-family:"Noto Serif TC",serif;font-size:20px;letter-spacing:.28em}
+    .line{width:42px;height:1px;margin:24px auto;background:#a65f58}
+    .service{margin:0;color:#6f6a67;font-size:14px;line-height:1.9;letter-spacing:.04em}
+    button{width:100%;margin-top:30px;padding:15px 18px;border:0;border-radius:13px;background:#d7c3c4;color:#382321;font-size:17px;font-weight:700;cursor:pointer;transition:.2s}
+    button:active{transform:scale(.98)}
+    button:disabled{opacity:.6;cursor:wait}
+    .hint{margin:14px 0 0;color:#8a807c;font-size:12px;line-height:1.6}
+    .status{min-height:20px;margin:12px 0 0;color:#a65f58;font-size:13px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <p class="eyebrow">A BETTER YOU</p>
+    <h1>CHEN.XIN</h1>
+    <p class="name">陳芯</p>
+    <div class="line"></div>
+    <p class="service">LINE OA 建置｜AI 自動化｜視覺設計<br>從品牌畫面 到真正好用的系統</p>
+    <button id="shareButton" type="button" disabled>準備中⋯</button>
+    <p class="hint">點擊後可選擇 LINE 好友或群組<br>分享完整數位名片</p>
+    <p id="status" class="status" role="status"></p>
+  </main>
+
+  <script>
+    const LIFF_ID = "2007736327-ZO83VAmo";
+    const SHARE_URL = "https://chenxindesigner.github.io/flex-v2/card/";
+    const button = document.getElementById("shareButton");
+    const status = document.getElementById("status");
+
+    const card = {
+      type: "bubble",
+      hero: {
+        type: "image",
+        url: "https://lh3.googleusercontent.com/d/1AFkszvMy7vTCQgEhRV3pnuo-JQvdcsyt",
+        size: "full",
+        aspectRatio: "4:3",
+        aspectMode: "cover"
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {type:"text",text:"LINE OA建置｜AI 自動化｜視覺設計",weight:"bold",size:"md",color:"#55342e"},
+          {type:"box",layout:"baseline",margin:"md",contents:[
+            {type:"text",text:"⭑ 從品牌畫面，到真正好用的系統 ⭑",size:"md",color:"#A65F58",margin:"none",flex:0}
+          ]},
+          {type:"box",layout:"vertical",margin:"md",spacing:"none",contents:[
+            {type:"box",layout:"baseline",spacing:"none",contents:[
+              {type:"text",text:"從規劃、設計一路到系統整合，一次處理",color:"#6F6A67",size:"sm"}
+            ],margin:"none"},
+            {type:"box",layout:"baseline",spacing:"none",contents:[
+              {type:"text",text:"減少來回溝通與重複確認，執行更有效率",color:"#6F6A67",size:"sm"}
+            ],margin:"md"}
+          ]}
+        ],
+        margin: "none",
+        spacing: "none"
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "none",
+        contents: [
+          {type:"box",layout:"horizontal",contents:[
+            {type:"button",action:{type:"uri",label:"作品集",uri:"https://chenxinstudio.com/#portfolio"},margin:"none",height:"sm",style:"link",color:"#55342e"},
+            {type:"button",action:{type:"uri",label:"預約諮詢",uri:"https://smart-booking-system-one.vercel.app"},color:"#55342e",style:"link",height:"sm",margin:"none"}
+          ]},
+          {type:"box",layout:"horizontal",contents:[
+            {type:"button",action:{type:"uri",label:"LINE官網",uri:"https://line.me/R/ti/p/@113irqmx"},margin:"none",height:"sm",style:"link",color:"#55342e"},
+            {type:"button",action:{type:"uri",label:"意念空間",uri:"https://line.me/R/ti/p/@989mrfum"},style:"link",height:"sm",color:"#55342e"}
+          ]},
+          {type:"box",layout:"vertical",contents:[
+            {type:"button",action:{type:"uri",label:"名片分享",uri:SHARE_URL},height:"sm",color:"#d7c3c4",style:"secondary"}
+          ]}
+        ],
+        flex: 0,
+        background: {type:"linearGradient",angle:"0deg",startColor:"#fef9f7",endColor:"#fef9f7"},
+        margin: "none"
+      },
+      styles: {
+        body: {backgroundColor:"#fef9f7"},
+        footer: {separator:true}
+      }
+    };
+
+    const message = {
+      type: "flex",
+      altText: "陳芯｜LINE OA建置・AI自動化・視覺設計",
+      contents: card
+    };
+
+    async function init(){
+      try{
+        await liff.init({lifFId:LIFF_ID});
+        if(!liff.isLoggedIn()){
+          status.textContent = "正在連接 LINE⋯";
+          liff.login({redirectUri:window.location.href});
+          return;
+        }
+        button.disabled = false;
+        button.textContent = "分享給 LINE 好友";
+        status.textContent = "";
+      }catch(error){
+        button.textContent = "暫時無法分享";
+        status.textContent = "請使用手機 LINE 開啟此頁";
+      }
+    }
+
+    button.addEventListener("click", async () => {
+      if(!liff.isApiAvailable("shareTargetPicker")){
+        status.textContent = "請使用手機 LINE 開啟此頁";
+        return;
+      }
+      button.disabled = true;
+      button.textContent = "開啟好友名單⋯";
+      status.textContent = "";
+      try{
+        const result = await liff.shareTargetPicker([message]);
+        if(result){
+          status.textContent = "名片已分享完成";
+        }else{
+          status.textContent = "你已取消分享";
+        }
+      }catch(error){
+        status.textContent = "分享失敗，請稍後再試";
+      }finally{
+        button.disabled = false;
+        button.textContent = "分享給 LINE 好友";
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
