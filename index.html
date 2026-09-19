@@ -104,15 +104,63 @@
 
     let isCardShareMode = false;
 
+    function detectCardShareMode(){
+      try{
+        const params = new URLSearchParams(window.location.search);
+
+        // 1. 一般 query：?mode=card
+        if(params.get("mode") === "card") return true;
+
+        // 2. LINE LIFF 有時會把原始參數包進 liff.state
+        const state = params.get("liff.state");
+        if(state){
+          let decoded = state;
+          for(let i=0;i<3;i++){
+            try{
+              const next = decodeURIComponent(decoded);
+              if(next === decoded) break;
+              decoded = next;
+            }catch(e){ break; }
+          }
+
+          if(decoded.includes("mode=card")) return true;
+
+          try{
+            const stateUrl = new URL(decoded, window.location.origin);
+            if(stateUrl.searchParams.get("mode") === "card") return true;
+          }catch(e){}
+        }
+
+        // 3. 最後保險：處理仍在 href 中的編碼參數
+        const href = window.location.href;
+        if(
+          href.includes("mode=card") ||
+          href.includes("mode%3Dcard") ||
+          href.includes("mode%253Dcard")
+        ) return true;
+
+        return false;
+      }catch(e){
+        return false;
+      }
+    }
+
+    // 先判斷一次，避免畫面先閃出一般分享器
+    isCardShareMode = detectCardShareMode();
+    if(isCardShareMode){
+      document.getElementById("normalMode").style.display = "none";
+      document.getElementById("cardShareMode").style.display = "block";
+    }
+
     liff.init({ liffId: LIFF_ID })
       .then(async () => {
+        // init 後再判斷一次，兼容 LIFF secondary redirect
+        isCardShareMode = detectCardShareMode();
+
         if (!liff.isLoggedIn()) {
           liff.login({ redirectUri: window.location.href });
           return;
         }
-
-        const params = new URLSearchParams(window.location.search);
-        isCardShareMode = params.get("mode") === "card";
 
         if (isCardShareMode) {
           document.getElementById("normalMode").style.display = "none";
@@ -121,7 +169,7 @@
         }
       })
       .catch(err => {
-        if (isCardShareMode) {
+        if (detectCardShareMode()) {
           document.getElementById("normalMode").style.display = "none";
           document.getElementById("cardShareMode").style.display = "block";
           document.getElementById("cardShareStatus").textContent = "LINE 初始化失敗，請重新開啟此頁";
