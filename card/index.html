@@ -36,7 +36,7 @@
 
   <script>
     const LIFF_ID = "2007736327-ZO83VAmo";
-    const SHARE_URL = "https://chenxindesigner.github.io/flex-v2/card/";
+    const SHARE_URL = "https://liff.line.me/2007736327-ZO83VAmo";
     const button = document.getElementById("shareButton");
     const status = document.getElementById("status");
 
@@ -104,7 +104,7 @@
 
     async function init(){
       try{
-        await liff.init({lifFId:LIFF_ID});
+        await liff.init({liffId:LIFF_ID});
         if(!liff.isLoggedIn()){
           status.textContent = "正在連接 LINE⋯";
           liff.login({redirectUri:window.location.href});
