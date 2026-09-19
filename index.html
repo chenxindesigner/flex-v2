@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>Flex 卡片分享器 v3.0（自動轉 URI 版）</title>
+  <title>Flex 卡片分享器 v3.1</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
@@ -15,11 +15,15 @@
     button{background:linear-gradient(135deg,#513934,#d4c0ba);color:#fff;border:0;padding:14px 20px;font-size:16px;font-weight:700;border-radius:12px;cursor:pointer;width:100%;transition:background .3s}
     button:hover{background:linear-gradient(135deg,#6e4d3a,#e0d2ca)}
     .hint{font-size:12px;color:#666;margin-top:-6px}
+    #cardShareMode{display:none;max-width:520px;text-align:center}
+    #cardShareMode h1{font-family:Georgia,"Noto Serif TC",serif;color:#55342e}
+    #cardShareMode p{color:#6f6a67;line-height:1.8}
+    #retryShare{margin-top:18px;background:#d7c3c4;color:#382321}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>✨ Flex 卡片分享器 v3.0（自動轉 URI 版）</h1>
+  <div class="card" id="normalMode">
+    <h1>✨ Flex 卡片分享器 v3.1</h1>
     <div class="updated">更新日期：2026.09.19</div>
     <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
     <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON（bubble/carousel 或完整 flex）"></textarea>
@@ -27,30 +31,140 @@
     <button onclick="sendToFriends()">📤 分享給 LINE 好友</button>
   </div>
 
+  <div class="card" id="cardShareMode">
+    <h1>CHEN.XIN｜陳芯</h1>
+    <p id="cardShareStatus">正在開啟 LINE 好友／群組選擇器⋯</p>
+    <button id="retryShare" type="button" onclick="shareBusinessCard()">重新開啟好友名單</button>
+  </div>
+
   <script>
-    // 文字觸發的預設落點（不想開別的頁就用這個）
+    const LIFF_ID = "2007736327-ZO83VAmo";
     const DEFAULT_FALLBACK_URI = "https://line.me/";
+    const CARD_SHARE_LIFF_URL = "https://liff.line.me/2007736327-ZO83VAmo/?mode=card";
 
-    liff.init({ liffId: "2007736327-ZO83VAmo" })
-      .then(() => { if (!liff.isLoggedIn()) liff.login(); })
-      .catch(err => alert("❌ LIFF 初始化失敗：" + err));
+    const BUSINESS_CARD_MESSAGE = {
+      type: "flex",
+      altText: "陳芯｜LINE OA建置・AI自動化・視覺設計",
+      contents: {
+        type: "bubble",
+        hero: {
+          type: "image",
+          url: "https://lh3.googleusercontent.com/d/1AFkszvMy7vTCQgEhRV3pnuo-JQvdcsyt",
+          size: "full",
+          aspectRatio: "4:3",
+          aspectMode: "cover"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          margin: "none",
+          spacing: "none",
+          contents: [
+            {type:"text",text:"LINE OA建置｜AI 自動化｜視覺設計",weight:"bold",size:"md",color:"#55342e"},
+            {type:"box",layout:"baseline",margin:"md",contents:[
+              {type:"text",text:"⭑ 從品牌畫面，到真正好用的系統 ⭑",size:"md",color:"#A65F58",margin:"none",flex:0}
+            ]},
+            {type:"box",layout:"vertical",margin:"md",spacing:"none",contents:[
+              {type:"box",layout:"baseline",spacing:"none",contents:[
+                {type:"text",text:"從規劃、設計一路到系統整合，一次處理",color:"#6F6A67",size:"sm"}
+              ],margin:"none"},
+              {type:"box",layout:"baseline",spacing:"none",contents:[
+                {type:"text",text:"減少來回溝通與重複確認，執行更有效率",color:"#6F6A67",size:"sm"}
+              ],margin:"md"}
+            ]}
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          spacing: "none",
+          flex: 0,
+          margin: "none",
+          background: {type:"linearGradient",angle:"0deg",startColor:"#fef9f7",endColor:"#fef9f7"},
+          contents: [
+            {type:"box",layout:"horizontal",contents:[
+              {type:"button",action:{type:"uri",label:"作品集",uri:"https://chenxinstudio.com/#portfolio"},margin:"none",height:"sm",style:"link",color:"#55342e"},
+              {type:"button",action:{type:"uri",label:"預約諮詢",uri:"https://smart-booking-system-one.vercel.app"},color:"#55342e",style:"link",height:"sm",margin:"none"}
+            ]},
+            {type:"box",layout:"horizontal",contents:[
+              {type:"button",action:{type:"uri",label:"LINE官網",uri:"https://line.me/R/ti/p/@113irqmx"},margin:"none",height:"sm",style:"link",color:"#55342e"},
+              {type:"button",action:{type:"uri",label:"意念空間",uri:"https://line.me/R/ti/p/@989mrfum"},style:"link",height:"sm",color:"#55342e"}
+            ]},
+            {type:"box",layout:"vertical",contents:[
+              {type:"button",action:{type:"uri",label:"名片分享",uri:CARD_SHARE_LIFF_URL},height:"sm",color:"#d7c3c4",style:"secondary"}
+            ]}
+          ]
+        },
+        styles: {
+          body: {backgroundColor:"#fef9f7"},
+          footer: {separator:true}
+        }
+      }
+    };
 
-    // —— 把 message / msg: / actionText → 安全的 URI（不綁 OA、人人可用） ——
+    let isCardShareMode = false;
+
+    liff.init({ liffId: LIFF_ID })
+      .then(async () => {
+        if (!liff.isLoggedIn()) {
+          liff.login({ redirectUri: window.location.href });
+          return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        isCardShareMode = params.get("mode") === "card";
+
+        if (isCardShareMode) {
+          document.getElementById("normalMode").style.display = "none";
+          document.getElementById("cardShareMode").style.display = "block";
+          await shareBusinessCard();
+        }
+      })
+      .catch(err => {
+        if (isCardShareMode) {
+          document.getElementById("normalMode").style.display = "none";
+          document.getElementById("cardShareMode").style.display = "block";
+          document.getElementById("cardShareStatus").textContent = "LINE 初始化失敗，請重新開啟此頁";
+        } else {
+          alert("❌ LIFF 初始化失敗：" + err);
+        }
+      });
+
+    async function shareBusinessCard(){
+      const status = document.getElementById("cardShareStatus");
+      if (!liff.isApiAvailable("shareTargetPicker")) {
+        status.textContent = "目前無法開啟好友名單，請使用手機 LINE 開啟";
+        return;
+      }
+
+      status.textContent = "正在開啟 LINE 好友／群組選擇器⋯";
+      try{
+        const res = await liff.shareTargetPicker([BUSINESS_CARD_MESSAGE]);
+        if(res === null){
+          status.textContent = "你已取消分享";
+          return;
+        }
+        status.textContent = "名片已分享完成";
+        setTimeout(() => {
+          try { liff.closeWindow(); } catch(e) {}
+        }, 500);
+      }catch(e){
+        status.textContent = "好友名單沒有成功開啟，請按下方按鈕再試一次";
+      }
+    }
+
     function convertMessageActionsToUri(obj){
       if(!obj || typeof obj!=='object') return obj;
 
       if(obj.action && typeof obj.action==='object'){
         const a=obj.action;
 
-        // 原生 message
         if(a.type==='message' && typeof a.text==='string'){
           obj.action = { type:'uri', label:a.label||'', uri: DEFAULT_FALLBACK_URI };
         }
-        // 簡寫：uri: "msg:文字"
         else if(a.type==='uri' && typeof a.uri==='string' && a.uri.startsWith('msg:')){
           obj.action = { type:'uri', label:a.label||'', uri: DEFAULT_FALLBACK_URI };
         }
-        // 自定欄位：actionText
         else if(a.type==='uri' && typeof a.actionText==='string' && a.actionText.trim()){
           obj.action = { type:'uri', label:a.label||'', uri: DEFAULT_FALLBACK_URI };
         }
@@ -62,15 +176,14 @@
       return obj;
     }
 
-    // —— 保留你的清理：空 box、圖床網址正規化 ——
     function sanitize(obj, path=""){
       if(typeof obj!=='object' || obj===null) return obj;
 
       if(obj.type==='box' && Array.isArray(obj.contents) && obj.contents.length===0 && path.includes("footer")){
-        return obj; // 保留 footer 空 box 作 spacer
+        return obj;
       }
       if(obj.type==='box' && Array.isArray(obj.contents) && obj.contents.length===0){
-        return null; // 其他空 box 移除
+        return null;
       }
       if(obj.url && typeof obj.url==='string'){
         const m=obj.url.match(/https:\/\/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
@@ -89,7 +202,6 @@
       return obj;
     }
 
-    // —— 自動包成合法 flex ——
     function toFlexMessage(parsed, altTextFallback){
       const isBubbleOrCarousel = parsed && typeof parsed==='object' &&
         (parsed.type==='bubble' || parsed.type==='carousel');
@@ -107,7 +219,7 @@
       try{
         let parsed=JSON.parse(raw);
         parsed=sanitize(parsed);
-        parsed=convertMessageActionsToUri(parsed); // ← 核心：自動把文字觸發改成 URI
+        parsed=convertMessageActionsToUri(parsed);
 
         const message=toFlexMessage(parsed,altText);
         if(!message) return alert("❌ 需為 bubble/carousel 或完整 flex 結構");
