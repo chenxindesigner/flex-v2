@@ -74,8 +74,27 @@
 
     function readLiffParams(){
       const params = new URLSearchParams(window.location.search);
-      incomingReferralToken = params.get("r") || "";
-      currentAction = params.get("a") || "open";
+
+      let referral = params.get("r") || "";
+      let action = params.get("a") || "";
+
+      const rawState = params.get("liff.state");
+      if(rawState){
+        try{
+          const decoded = decodeURIComponent(rawState);
+          const stateQuery = decoded.includes("?")
+            ? decoded.slice(decoded.indexOf("?") + 1)
+            : decoded.replace(/^\?/, "");
+          const stateParams = new URLSearchParams(stateQuery);
+          referral = referral || stateParams.get("r") || "";
+          action = action || stateParams.get("a") || "";
+        }catch(e){
+          console.warn("Unable to parse liff.state", e);
+        }
+      }
+
+      incomingReferralToken = referral;
+      currentAction = action || "open";
     }
 
     function makeLiffActionUrl(action){
