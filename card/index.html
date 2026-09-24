@@ -30,7 +30,16 @@
       }
       const action=bootAction();
       window.__CARD_BOOT_ACTION__=action;
-      if(["portfolio","booking","line_oa","idea_space"].includes(action)){
+      const directTargets={
+        portfolio:"https://chenxinstudio.com/#portfolio",
+        line_oa:"https://line.me/R/ti/p/@113irqmx",
+        idea_space:"https://line.me/R/ti/p/@989mrfum"
+      };
+      if(directTargets[action]){
+        window.location.replace(directTargets[action]);
+        return;
+      }
+      if(action==="booking"){
         document.documentElement.classList.add("fast-route");
       }else if(action==="share"){
         document.documentElement.classList.add("auto-share-route");
@@ -166,7 +175,7 @@
     </div>
 
     <div class="rule"></div>
-    <p class="hint">歡迎分享給身邊有需求的朋友<br>成功合作可享推薦獎金<br><strong>好友需點開名片內任一按鈕，推薦才會成立</strong></p>
+    <p class="hint">歡迎分享給身邊有需求的朋友<br>成功合作可享推薦獎金<br><strong>好友需點「預約諮詢」，推薦才會成立</strong></p>
     <p id="status" class="status" role="status"></p>
     <p id="memberCode" class="code"></p>
   </main>
@@ -281,39 +290,6 @@
       return data;
     }
 
-    function trackAndLeave(action){
-      const accessToken=liff.getAccessToken();
-      if(!accessToken) return false;
-
-      const body=JSON.stringify({
-        accessToken,
-        referralToken:incomingReferralToken||null,
-        action,
-        sessionId:getSessionId()
-      });
-
-      let sent=false;
-      try{
-        if(navigator.sendBeacon){
-          const blob=new Blob([body],{type:"text/plain;charset=UTF-8"});
-          sent=navigator.sendBeacon(TRACK_API,blob);
-        }
-      }catch(e){}
-
-      if(!sent){
-        try{
-          fetch(TRACK_API,{
-            method:"POST",
-            headers:{"Content-Type":"text/plain;charset=UTF-8"},
-            body,
-            keepalive:true
-          }).catch(()=>{});
-          sent=true;
-        }catch(e){}
-      }
-      return sent;
-    }
-
     function revealCard(){
       document.documentElement.classList.remove("fast-route","auto-share-route");
       document.body.style.visibility="visible";
@@ -412,7 +388,7 @@
                     action: {
                       type: "uri",
                       label: "作品集",
-                      uri: makeLiffActionUrl("portfolio")
+                      uri: FALLBACK_TARGETS.portfolio
                     },
                     margin: "none",
                     height: "sm",
@@ -442,7 +418,7 @@
                     action: {
                       type: "uri",
                       label: "LINE官網",
-                      uri: makeLiffActionUrl("line_oa")
+                      uri: FALLBACK_TARGETS.line_oa
                     },
                     margin: "none",
                     height: "sm",
@@ -454,7 +430,7 @@
                     action: {
                       type: "uri",
                       label: "意念空間",
-                      uri: makeLiffActionUrl("idea_space")
+                      uri: FALLBACK_TARGETS.idea_space
                     },
                     style: "link",
                     height: "sm",
@@ -607,10 +583,14 @@
 
         readLiffParams();
 
-        if(currentAction === "portfolio" || currentAction === "booking" || currentAction === "line_oa" || currentAction === "idea_space"){
-          const target=FALLBACK_TARGETS[currentAction];
-          trackAndLeave(currentAction);
-          window.location.replace(target);
+        if(currentAction === "portfolio" || currentAction === "line_oa" || currentAction === "idea_space"){
+          window.location.replace(FALLBACK_TARGETS[currentAction]);
+          return;
+        }
+
+        if(currentAction === "booking"){
+          await track("booking");
+          window.location.replace(FALLBACK_TARGETS.booking);
           return;
         }
 
