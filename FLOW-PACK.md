@@ -1,6 +1,6 @@
 # 電子名片推薦系統流程包
 
-最後更新：2026.09.20 04:40（台北時間 UTC+8）
+最後更新：2026.09.24 20:30（台北時間 UTC+8）
 
 目前版本：v3.1  
 狀態：內部測試 OK，待 2026.09.21 外部好友實測
@@ -215,6 +215,30 @@ LIFF 分享頁已新增「我的推薦紀錄」。
 `https://line.me/ti/p/_YTgB9L_px`
 
 ---
+
+## 8.1 2026.09.24 名片按鈕快速跳轉
+
+問題：
+
+- Flex 名片內「作品集／預約諮詢／LINE 官網／意念空間」原本全部先開完整 LIFF 名片頁。
+- LIFF 頁面會先顯示「準備中…」，再等待 `liff.init → LINE Profile 驗證 → Supabase 推薦追蹤` 完成後才轉址。
+- 使用者體感為多一個無意義中繼畫面，而且按鈕明顯變慢。
+
+本次修正僅調整前端路由，不改推薦資料結構與成立規則：
+
+- 作品集／預約諮詢／LINE 官網／意念空間：
+  - 在頁面第一幀前辨識 action。
+  - 不再顯示完整名片頁。
+  - 取得既有 LINE access token 後，以 `sendBeacon`；不支援時用 `fetch keepalive` 在背景送出原本相同的推薦追蹤資料。
+  - 立即 `window.location.replace()` 到真正目標頁，不再等待追蹤 API 回應。
+- 背景追蹤仍包含：
+  - LINE access token
+  - referral token
+  - action
+  - sessionId
+- `flex-card-track` Edge Function、LINE Profile 驗證、直接推薦第一筆鎖定、禁止自我推薦／循環推薦全部未修改。
+- 「名片分享」仍使用原本 `track("share") + shareTargetPicker` 正式流程，只把分享選擇器開啟前的完整名片畫面隱藏；若分享取消或失敗才顯示原頁供重試。
+- 一般直接開啟電子名片頁仍維持原 UI、我的推薦紀錄、直接洽詢與分享功能。
 
 ## 9. 本次已修正問題
 

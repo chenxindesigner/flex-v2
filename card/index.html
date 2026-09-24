@@ -5,6 +5,38 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <meta name="theme-color" content="#fef9f7" />
   <title>陳芯｜數位名片分享</title>
+  <script>
+    (function(){
+      function bootAction(){
+        try{
+          const params=new URLSearchParams(window.location.search);
+          let action=params.get("a")||"";
+          let state=params.get("liff.state")||"";
+          if(!action&&state){
+            for(let i=0;i<3;i++){
+              try{
+                const next=decodeURIComponent(state);
+                if(next===state) break;
+                state=next;
+              }catch(e){break}
+            }
+            const query=state.includes("?")?state.slice(state.indexOf("?")+1):state.replace(/^\?/,"");
+            action=new URLSearchParams(query).get("a")||"";
+          }
+          return action;
+        }catch(e){
+          return "";
+        }
+      }
+      const action=bootAction();
+      window.__CARD_BOOT_ACTION__=action;
+      if(["portfolio","booking","line_oa","idea_space"].includes(action)){
+        document.documentElement.classList.add("fast-route");
+      }else if(action==="share"){
+        document.documentElement.classList.add("auto-share-route");
+      }
+    })();
+  </script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   
 <style>
@@ -14,6 +46,8 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;width:100%;max-width:100%;overflow-x:hidden}
+  html.fast-route body,
+  html.auto-share-route body{visibility:hidden;background:#fef9f7!important}
   body{
     min-height:100dvh;padding:46px 18px 34px;display:flex;justify-content:center;align-items:flex-start;
     color:var(--ink);font-family:"Songti TC","Noto Serif TC","PMingLiU",serif;touch-action:pan-y;
@@ -212,7 +246,7 @@
       }
 
       incomingReferralToken = referral;
-      currentAction = action || "open";
+      currentAction = action || window.__CARD_BOOT_ACTION__ || "open";
     }
 
     function makeLiffActionUrl(action){
@@ -245,6 +279,44 @@
         memberCode.textContent = data.member.referralCode ? "推薦編號 " + data.member.referralCode : "";
       }
       return data;
+    }
+
+    function trackAndLeave(action){
+      const accessToken=liff.getAccessToken();
+      if(!accessToken) return false;
+
+      const body=JSON.stringify({
+        accessToken,
+        referralToken:incomingReferralToken||null,
+        action,
+        sessionId:getSessionId()
+      });
+
+      let sent=false;
+      try{
+        if(navigator.sendBeacon){
+          const blob=new Blob([body],{type:"text/plain;charset=UTF-8"});
+          sent=navigator.sendBeacon(TRACK_API,blob);
+        }
+      }catch(e){}
+
+      if(!sent){
+        try{
+          fetch(TRACK_API,{
+            method:"POST",
+            headers:{"Content-Type":"text/plain;charset=UTF-8"},
+            body,
+            keepalive:true
+          }).catch(()=>{});
+          sent=true;
+        }catch(e){}
+      }
+      return sent;
+    }
+
+    function revealCard(){
+      document.documentElement.classList.remove("fast-route","auto-share-route");
+      document.body.style.visibility="visible";
     }
 
     function buildBusinessCard(){
@@ -535,15 +607,15 @@
 
         readLiffParams();
 
-        status.textContent = "正在確認名片資料⋯";
-        const tracked = await track(currentAction);
-
         if(currentAction === "portfolio" || currentAction === "booking" || currentAction === "line_oa" || currentAction === "idea_space"){
-          const target = tracked && tracked.targetUrl ? tracked.targetUrl : FALLBACK_TARGETS[currentAction];
-          status.textContent = "即將開啟⋯";
+          const target=FALLBACK_TARGETS[currentAction];
+          trackAndLeave(currentAction);
           window.location.replace(target);
           return;
         }
+
+        status.textContent = "正在確認名片資料⋯";
+        await track(currentAction);
 
         button.disabled = false;
         recordsButton.disabled = false;
@@ -551,12 +623,16 @@
         status.textContent = "";
 
         if(currentAction === "share"){
-          setTimeout(() => {
-            shareBusinessCard(false);
-          }, 150);
+          setTimeout(async () => {
+            await shareBusinessCard(false);
+            revealCard();
+          }, 0);
+        }else{
+          revealCard();
         }
       }catch(error){
         console.error(error);
+        revealCard();
         button.disabled = false;
         button.textContent = "重新連線";
         status.textContent = "名片連線失敗，請再試一次";
