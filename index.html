@@ -27,7 +27,7 @@
     <div class="updated">更新日期：2026.09.19</div>
     <input id="altTextInput" type="text" placeholder="請輸入卡片標題 altText（可留空）" />
     <textarea id="jsonInput" placeholder="請貼上完整 Flex JSON（bubble/carousel 或完整 flex）"></textarea>
-    <div class="hint">※ 偵測到文字觸發（message / msg: / actionText）將自動改成 URI 後再分享；原本的 URI 不會被改動。</div>
+    <div class="hint">※ 一般 Flex URI 保持原樣；CHEN.XIN 名片的固定功能網址會在送出前自動套用推薦追蹤。</div>
     <button onclick="sendToFriends()">📤 分享給 LINE 好友</button>
   </div>
 
@@ -41,6 +41,15 @@
     const LIFF_ID = "2007736327-ZO83VAmo";
     const DEFAULT_FALLBACK_URI = "https://line.me/";
     const CARD_SHARE_LIFF_URL = "https://liff.line.me/2007736327-ZO83VAmo/?mode=card";
+    const TRACK_API = "https://tzdaqrfsgwijbswfxlwj.supabase.co/functions/v1/flex-card-track";
+    const TRACKED_CARD_LIFF_BASE = "https://liff.line.me/2007730669-c8K2cktB/";
+    const TRACKED_CARD_TARGETS = {
+      portfolio: "https://chenxinstudio.com/#portfolio",
+      booking: "https://smart-booking-system-one.vercel.app",
+      line_oa: "https://line.me/R/ti/p/@113irqmx",
+      idea_space: "https://line.me/R/ti/p/@989mrfum",
+      share: CARD_SHARE_LIFF_URL
+    };
 
     const BUSINESS_CARD_MESSAGE = {
       type: "flex",
@@ -103,6 +112,93 @@
     };
 
     let isCardShareMode = false;
+    let ownReferralToken = "";
+
+    function getShareSessionId(){
+      try{
+        let id=sessionStorage.getItem("flexShareSessionId");
+        if(!id){
+          id=(crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())+"-"+Math.random().toString(36).slice(2);
+          sessionStorage.setItem("flexShareSessionId",id);
+        }
+        return id;
+      }catch(e){
+        return String(Date.now());
+      }
+    }
+
+    async function trackShareAction(action){
+      const accessToken=liff.getAccessToken();
+      if(!accessToken) throw new Error("no_line_access_token");
+
+      const response=await fetch(TRACK_API,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          accessToken,
+          referralToken:null,
+          action,
+          sessionId:getShareSessionId()
+        })
+      });
+
+      if(!response.ok) throw new Error("tracking_failed");
+      const data=await response.json();
+      if(data && data.member && data.member.referralToken){
+        ownReferralToken=data.member.referralToken;
+      }
+      return data;
+    }
+
+    async function ensureOwnReferralToken(){
+      if(ownReferralToken) return ownReferralToken;
+      await trackShareAction("open");
+      if(!ownReferralToken) throw new Error("missing_referral_token");
+      return ownReferralToken;
+    }
+
+    function makeTrackedCardUrl(action,token){
+      const params=new URLSearchParams();
+      params.set("r",token);
+      params.set("a",action);
+      return TRACKED_CARD_LIFF_BASE+"?"+params.toString();
+    }
+
+    function businessActionForUri(uri){
+      if(typeof uri!=="string") return "";
+      const clean=uri.trim();
+      for(const [action,target] of Object.entries(TRACKED_CARD_TARGETS)){
+        if(clean===target) return action;
+      }
+      return "";
+    }
+
+    function containsBusinessCardUri(obj){
+      if(!obj || typeof obj!=="object") return false;
+      if(obj.action && obj.action.type==="uri" && businessActionForUri(obj.action.uri)) return true;
+      for(const key in obj){
+        if(obj[key] && typeof obj[key]==="object" && containsBusinessCardUri(obj[key])) return true;
+      }
+      return false;
+    }
+
+    function rewriteBusinessCardUris(obj,token){
+      if(!obj || typeof obj!=="object") return obj;
+
+      if(obj.action && obj.action.type==="uri" && typeof obj.action.uri==="string"){
+        const action=businessActionForUri(obj.action.uri);
+        if(action){
+          obj.action.uri=makeTrackedCardUrl(action,token);
+        }
+      }
+
+      for(const key in obj){
+        if(obj[key] && typeof obj[key]==="object"){
+          obj[key]=rewriteBusinessCardUris(obj[key],token);
+        }
+      }
+      return obj;
+    }
 
     function detectCardShareMode(){
       try{
@@ -187,11 +283,17 @@
 
       status.textContent = "正在開啟 LINE 好友／群組選擇器⋯";
       try{
-        const res = await liff.shareTargetPicker([BUSINESS_CARD_MESSAGE]);
+        const token=await ensureOwnReferralToken();
+        const trackedMessage=rewriteBusinessCardUris(
+          JSON.parse(JSON.stringify(BUSINESS_CARD_MESSAGE)),
+          token
+        );
+        const res = await liff.shareTargetPicker([trackedMessage]);
         if(res === null){
           status.textContent = "你已取消分享";
           return;
         }
+        try{ await trackShareAction("share_completed"); }catch(e){}
         status.textContent = "名片已分享完成";
         setTimeout(() => {
           try { liff.closeWindow(); } catch(e) {}
@@ -269,13 +371,23 @@
         parsed=sanitize(parsed);
         parsed=convertMessageActionsToUri(parsed);
 
+        const isBusinessCard=containsBusinessCardUri(parsed);
+        if(isBusinessCard){
+          const token=await ensureOwnReferralToken();
+          parsed=rewriteBusinessCardUris(parsed,token);
+        }
+
         const message=toFlexMessage(parsed,altText);
         if(!message) return alert("❌ 需為 bubble/carousel 或完整 flex 結構");
 
         const res=await liff.shareTargetPicker([message]);
         if(res===null) return alert("ℹ️ 你已取消分享（未送出）");
 
-        alert("✅ 已送出！如卡片原本含文字觸發，已自動改為連結（不影響原本 URI 按鈕）。");
+        if(isBusinessCard){
+          try{ await trackShareAction("share_completed"); }catch(e){}
+        }
+
+        alert("✅ 已送出！");
         document.getElementById("jsonInput").value="";
         document.getElementById("altTextInput").value="";
       }catch(e){

@@ -1,6 +1,6 @@
 # 電子名片推薦系統流程包
 
-最後更新：2026.09.27 23:55（台北時間 UTC+8）
+最後更新：2026.09.28 00:10（台北時間 UTC+8）
 
 目前版本：v3.2  
 狀態：內部測試 OK，待 2026.09.21 外部好友實測
@@ -392,6 +392,31 @@ LINE 原生「轉傳」不會觸發歸屬變更；只有系統內的「好友分
 同時加入 Supabase tracking endpoint 的 `preconnect`／`dns-prefetch`，減少第一次建立連線的等待時間。身分驗證與資料寫入仍需完成後才轉址，不以犧牲推薦／互動紀錄可靠性換取假性速度。
 
 注意：LINE 聊天室中已經送出的 Flex 訊息，其 `action.uri` 無法被遠端改寫。若某張歷史卡的個別按鈕在送出當下就是直接目標網址，該按鈕無法套用後來的 Router；永久 Router 規則適用於已使用 Router 的舊卡與之後新產生的卡。
+
+### Face 分享器 JSON 自動 Router 化
+
+使用者不需要修改既有 Flex JSON。
+
+Face 分享器 `index.html` 在送出前會辨識 CHEN.XIN 名片的固定目標網址：
+
+- 作品集
+- 預約諮詢
+- LINE 官網
+- 意念空間
+- 名片分享
+
+若命中上述網址，分享器會先取得目前分享者的 referral token，再把該 URI 自動改成 dedicated card LIFF Router：
+
+```text
+原本 JSON 直接網址
+→ Face 分享器送出前自動轉換
+→ 固定 card LIFF + r=<分享者 token> + a=<action>
+→ LINE 好友收到可追蹤的永久 Router 卡
+```
+
+一般不屬於 CHEN.XIN 名片的 Flex URI 不做修改。
+
+本次只修改「送出前 URI 處理」與分享完成紀錄；不修改 root LIFF 的 login／redirect／400 相關初始化邏輯。
 
 ## 9. 本次已修正問題
 
