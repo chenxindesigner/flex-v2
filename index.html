@@ -38,6 +38,7 @@
   </div>
 
   <script>
+    const SHARE_ROUTER_VERSION = "20260928-0018";
     const LIFF_ID = "2007736327-ZO83VAmo";
     const DEFAULT_FALLBACK_URI = "https://line.me/";
     const CARD_SHARE_LIFF_URL = "https://liff.line.me/2007736327-ZO83VAmo/?mode=card";
@@ -164,29 +165,56 @@
       return TRACKED_CARD_LIFF_BASE+"?"+params.toString();
     }
 
-    function businessActionForUri(uri){
-      if(typeof uri!=="string") return "";
-      const clean=uri.trim();
-      for(const [action,target] of Object.entries(TRACKED_CARD_TARGETS)){
-        if(clean===target) return action;
+    const CHENXIN_LABEL_ACTIONS = {
+      "作品集":"portfolio",
+      "預約諮詢":"booking",
+      "LINE官網":"line_oa",
+      "意念空間":"idea_space",
+      "名片分享":"share",
+      "好友分享":"share"
+    };
+
+    function normalizeActionLabel(label){
+      return String(label||"").replace(/\s+/g,"").trim();
+    }
+
+    function businessActionForAction(action){
+      if(!action || typeof action!=="object") return "";
+      const labelAction=CHENXIN_LABEL_ACTIONS[normalizeActionLabel(action.label)];
+      if(labelAction) return labelAction;
+
+      if(typeof action.uri==="string"){
+        const clean=action.uri.trim();
+        for(const [name,target] of Object.entries(TRACKED_CARD_TARGETS)){
+          if(clean===target) return name;
+        }
       }
       return "";
     }
 
-    function containsBusinessCardUri(obj){
-      if(!obj || typeof obj!=="object") return false;
-      if(obj.action && obj.action.type==="uri" && businessActionForUri(obj.action.uri)) return true;
-      for(const key in obj){
-        if(obj[key] && typeof obj[key]==="object" && containsBusinessCardUri(obj[key])) return true;
+    function collectChenXinLabels(obj,set){
+      if(!obj || typeof obj!=="object") return set;
+      if(obj.action && typeof obj.action==="object"){
+        const normalized=normalizeActionLabel(obj.action.label);
+        if(CHENXIN_LABEL_ACTIONS[normalized]) set.add(normalized);
       }
-      return false;
+      for(const key in obj){
+        if(obj[key] && typeof obj[key]==="object") collectChenXinLabels(obj[key],set);
+      }
+      return set;
+    }
+
+    function isChenXinBusinessCard(obj){
+      const labels=collectChenXinLabels(obj,new Set());
+      const core=["作品集","預約諮詢","LINE官網","意念空間"];
+      return core.filter(label=>labels.has(label)).length>=3;
     }
 
     function rewriteBusinessCardUris(obj,token){
       if(!obj || typeof obj!=="object") return obj;
 
-      if(obj.action && obj.action.type==="uri" && typeof obj.action.uri==="string"){
-        const action=businessActionForUri(obj.action.uri);
+      if(obj.action && obj.action.type==="uri"){
+        const action=businessActionForAction(obj.action);
         if(action){
           obj.action.uri=makeTrackedCardUrl(action,token);
         }
@@ -371,7 +399,7 @@
         parsed=sanitize(parsed);
         parsed=convertMessageActionsToUri(parsed);
 
-        const isBusinessCard=containsBusinessCardUri(parsed);
+        const isBusinessCard=isChenXinBusinessCard(parsed);
         if(isBusinessCard){
           const token=await ensureOwnReferralToken();
           parsed=rewriteBusinessCardUris(parsed,token);
