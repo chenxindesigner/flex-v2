@@ -1,6 +1,6 @@
 # 電子名片推薦系統流程包
 
-最後更新：2026.09.28 00:31（台北時間 UTC+8）
+最後更新：2026.09.30 21:18（台北時間 UTC+8）
 
 目前版本：v3.2  
 狀態：內部測試 OK，待 2026.09.21 外部好友實測
@@ -462,6 +462,28 @@ A 以前把舊卡傳給 B
 - 新一層推薦來源是 B，不會沿用 A。
 - 這個承接能力只依賴「舊卡的好友分享按鈕仍可進入現行分享器」。
 - 歷史卡中如果某些一般功能按鈕當時是直接目標網址，這些既有按鈕本身仍無法被遠端改寫；但不影響其「好友分享」重新產生新版卡的能力。
+
+### 2026.09.30 LIFF 登入流程修正
+
+實機出現：新使用者由 Flex 功能按鈕進入 card LIFF 後，被再次導向 LINE Login，並顯示「錯誤／無法正常執行」。
+
+原因鎖定為 card LIFF 仍使用舊登入流程：
+
+```text
+liff.init()
+→ 若 isLoggedIn=false
+→ 在 LIFF browser 內再次 liff.login({redirectUri: window.location.href})
+```
+
+已改為：
+
+- `liff.init({ liffId, withLoginOnExternalBrowser: true })`
+- LIFF browser 內由 `liff.init()` 自動處理登入，不再手動呼叫 `liff.login()`
+- 只有非 LIFF 環境仍未登入時才顯式呼叫 `liff.login()`
+- 外部登入 redirect 改用固定 `https://chenxindesigner.github.io/flex-v2/card/`，並只帶必要的 `r` 與 `a`
+- `r/a` 參數於 `liff.init()` 完成後再解析
+
+此修正不改推薦歸屬、互動紀錄、Router action 與目標網址。
 
 ## 9. 本次已修正問題
 

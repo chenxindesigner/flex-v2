@@ -210,6 +210,7 @@
   </div>
 
   <script>
+    const CARD_RUNTIME_VERSION = "20260930-2118";
     const LIFF_ID = "2007730669-c8K2cktB";
     const LIFF_BASE_URL = "https://liff.line.me/2007730669-c8K2cktB/";
     const TRACK_API = "https://tzdaqrfsgwijbswfxlwj.supabase.co/functions/v1/flex-card-track";
@@ -591,17 +592,35 @@
       }
     }
 
+    function canonicalLoginRedirect(){
+      const url=new URL("https://chenxindesigner.github.io/flex-v2/card/");
+      if(incomingReferralToken) url.searchParams.set("r",incomingReferralToken);
+      if(currentAction) url.searchParams.set("a",currentAction);
+      return url.toString();
+    }
+
     async function init(){
       try{
-        await liff.init({liffId:LIFF_ID});
+        await liff.init({
+          liffId:LIFF_ID,
+          withLoginOnExternalBrowser:true
+        });
+
+        // LIFF additional parameters should be read after init has completed.
+        readLiffParams();
 
         if(!liff.isLoggedIn()){
           status.textContent = "正在連接 LINE⋯";
-          liff.login({redirectUri:window.location.href});
-          return;
-        }
 
-        readLiffParams();
+          // In the LIFF browser, login is handled automatically by liff.init().
+          // Only non-LIFF environments should explicitly start LINE Login.
+          if(!liff.isInClient()){
+            liff.login({redirectUri:canonicalLoginRedirect()});
+            return;
+          }
+
+          throw new Error("liff_auto_login_failed");
+        }
 
         if(currentAction === "portfolio" || currentAction === "booking" || currentAction === "line_oa" || currentAction === "idea_space"){
           await track(currentAction);
